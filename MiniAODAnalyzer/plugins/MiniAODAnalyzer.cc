@@ -159,12 +159,20 @@ class MiniAODAnalyzer : public edm::one::EDAnalyzer<edm::one::SharedResources>  
   edm::EDGetTokenT<std::vector<reco::GenParticle> >genparticleToken_;
   edm::EDGetTokenT<std::vector<pat::Muon> > muonToken_;
   edm::EDGetTokenT<std::vector<pat::Electron> > eleToken_;
+  edm::EDGetTokenT<edm::ValueMap<bool> > vidPassToken_;
+  edm::EDGetTokenT<edm::ValueMap<unsigned int> > vidBitmapToken_;
+  edm::EDGetTokenT<edm::ValueMap<vid::CutFlowResult> >  vidResultToken_;
 
 
  //setup tree;
   TTree* tree;
     tree_struc_ tree_;
 
+
+   TH1F* HEEP_pt;  
+   TH1F* Electron;
+   TH1F* Ratio;
+     
 
    TH1F* HEEP_single;  
    TH1F* HEEP;  
@@ -191,6 +199,9 @@ MiniAODAnalyzer::MiniAODAnalyzer(const edm::ParameterSet& iConfig)
   genparticleToken_    = consumes<std::vector<reco::GenParticle> >(iConfig.getUntrackedParameter<edm::InputTag>("genparticles"));
   muonToken_=consumes<std::vector<pat::Muon>>(iConfig.getUntrackedParameter<edm::InputTag>("muons"));
   eleToken_=consumes<std::vector<pat::Electron>>(iConfig.getUntrackedParameter<edm::InputTag>("electrons"));
+  vidPassToken_=consumes<edm::ValueMap<bool> >(iConfig.getParameter<edm::InputTag>("vid"));
+  vidBitmapToken_=consumes<edm::ValueMap<unsigned int> >(iConfig.getParameter<edm::InputTag>("vidBitmap"));
+  vidResultToken_=consumes<edm::ValueMap<vid::CutFlowResult> >(iConfig.getParameter<edm::InputTag>("vid"));
 }
 
 
@@ -226,6 +237,14 @@ MiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup
 
   edm::Handle<std::vector<pat::Electron> > electrons;
   iEvent.getByToken(eleToken_, electrons);
+  edm::Handle<edm::ValueMap<bool> > vidPass;
+  edm::Handle<edm::ValueMap<unsigned int> > vidBitmap;
+  edm::Handle<edm::ValueMap<vid::CutFlowResult> > vidResult;
+
+  iEvent.getByToken(vidPassToken_,vidPass);
+  iEvent.getByToken(vidBitmapToken_,vidBitmap);
+  iEvent.getByToken(vidResultToken_,vidResult);
+
 
   std::vector<float>genLep_pt;
   std::vector<float>genLep_mass;
@@ -290,10 +309,21 @@ MiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup
     float recomass;
     int index;   
    // int heepIDBits;
+  // bool HEEP_ind= false;
+  // bool heepID;
+   bool passHEEPV70=false;
+   size_t count =0;
+   unsigned int heepV70Bitmap;
 
-
-    for (const auto & el_iter : *electrons){
-      
+    //for (size_t eleNr=0;eleNr<electrons->size();eleNr++){
+  //	edm::Ptr<reco::GsfElectron> elePtr(electrons,eleNr);
+//	std::cout<<"eleNr   "<<eleNr<<std::endl; 
+//	count++	
+//}
+      for (const auto & el_iter: *electrons){
+   // for (size_t eleNr=0;eleNr<electrons->size();eleNr++){
+     // const auto & el_iter : 
+       edm::Ptr<reco::GsfElectron> elePtr(electrons,count);      
       float eta=el_iter.eta();
       float phi=el_iter.phi();
       
@@ -305,10 +335,14 @@ MiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup
 	recophi=el_iter.phi();
 	recomass=el_iter.mass();
 	dRMin=dR;
-        const int heepIDBits=el_iter.userInt("heepElectronID_HEEPV70Bitmap");
-
+        bool heepID=(*vidPass)[elePtr];
+	passHEEPV70=heepID;
+        heepV70Bitmap = (*vidBitmap)[elePtr];	
+        //heepID=el_iter.userInt("heepElectronID-HEEPV70");
+        //HEEP_ind = heepID;
       }
-      
+  // std::cout<<"count   "<<count<<std::endl;
+   count++;  
     } 
     if (dRMin<0.2){
       recoEle_pt.push_back(recopt);
@@ -316,33 +350,35 @@ MiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup
       recoEle_eta.push_back(recoeta);
       recoEle_phi.push_back(recophi);
       recoEle_dR.push_back(dRMin);
- int bincounter=1;
-/* using HEEPV70 = VIDCutCodes<cutnrs::HEEPV70>;
- bool pass_singleET = HEEPV70::pass(heepIDBits,{HEEPV70::ET});
- bool pass_singleETA = HEEPV70::pass(heepIDBits,{HEEPV70::ETA});
- bool pass_singleDETAINSEED = HEEPV70::pass(heepIDBits,{HEEPV70::DETAINSEED});
- bool pass_singleDPHIIN = HEEPV70::pass(heepIDBits,{HEEPV70::DPHIIN});
- bool pass_singleSIGMAIETAIETA = HEEPV70::pass(heepIDBits,{HEEPV70::SIGMAIETAIETA});
- bool pass_singleE2X5OVER5X5 = HEEPV70::pass(heepIDBits,{HEEPV70::E2X5OVER5X5});
- bool pass_singleHADEM = HEEPV70::pass(heepIDBits,{HEEPV70::HADEM});
- bool pass_singleTRKISO = HEEPV70::pass(heepIDBits,{HEEPV70::TRKISO});
- bool pass_singleEMHADD1ISO = HEEPV70::pass(heepIDBits,{HEEPV70::EMHADD1ISO});
- bool pass_singleDXY = HEEPV70::pass(heepIDBits,{HEEPV70::DXY});
- bool pass_singleMISSHITS = HEEPV70::pass(heepIDBits,{HEEPV70::MISSHITS});
- bool pass_singleECALDRIVEN = HEEPV70::pass(heepIDBits,{HEEPV70::ECALDRIVEN});
+      Electron->Fill(recopt);
+      if (passHEEPV70) HEEP_pt->Fill(recopt);
+       int bincounter=1;
+    using HEEPV70 = VIDCutCodes<cutnrs::HEEPV70>;
+ bool pass_singleET = HEEPV70::pass(heepV70Bitmap,{HEEPV70::ET});
+ bool pass_singleETA = HEEPV70::pass(heepV70Bitmap,{HEEPV70::ETA});
+ bool pass_singleDETAINSEED = HEEPV70::pass(heepV70Bitmap,{HEEPV70::DETAINSEED});
+ bool pass_singleDPHIIN = HEEPV70::pass(heepV70Bitmap,{HEEPV70::DPHIIN});
+ bool pass_singleSIGMAIETAIETA = HEEPV70::pass(heepV70Bitmap,{HEEPV70::SIGMAIETAIETA});
+ bool pass_singleE2X5OVER5X5 = HEEPV70::pass(heepV70Bitmap,{HEEPV70::E2X5OVER5X5});
+ bool pass_singleHADEM = HEEPV70::pass(heepV70Bitmap,{HEEPV70::HADEM});
+ bool pass_singleTRKISO = HEEPV70::pass(heepV70Bitmap,{HEEPV70::TRKISO});
+ bool pass_singleEMHADD1ISO = HEEPV70::pass(heepV70Bitmap,{HEEPV70::EMHADD1ISO});
+ bool pass_singleDXY = HEEPV70::pass(heepV70Bitmap,{HEEPV70::DXY});
+ bool pass_singleMISSHITS = HEEPV70::pass(heepV70Bitmap,{HEEPV70::MISSHITS});
+ bool pass_singleECALDRIVEN = HEEPV70::pass(heepV70Bitmap,{HEEPV70::ECALDRIVEN});
 
- bool passETA = HEEPV70::pass(heepIDBits,{HEEPV70::ET,HEEPV70::ETA});
- bool passDETAINSEED = HEEPV70::pass(heepIDBits,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED});
- bool passDPHIIN = HEEPV70::pass(heepIDBits,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED});
- bool passSIGMAIETAIETA = HEEPV70::pass(heepIDBits,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA});
- bool passE2X5OVER5X5 = HEEPV70::pass(heepIDBits,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5});
- bool passHADEM = HEEPV70::pass(heepIDBits,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5,HEEPV70::HADEM});
- bool passTRKISO = HEEPV70::pass(heepIDBits,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5,HEEPV70::HADEM,HEEPV70::TRKISO});
- bool passEMHADD1ISO = HEEPV70::pass(heepIDBits,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5,HEEPV70::HADEM,HEEPV70::TRKISO,HEEPV70::EMHADD1ISO});
- bool passDXY = HEEPV70::pass(heepIDBits,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5,HEEPV70::HADEM,HEEPV70::TRKISO,HEEPV70::EMHADD1ISO,HEEPV70::DXY});
- bool passMISSHITS = HEEPV70::pass(heepIDBits,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5,HEEPV70::HADEM,HEEPV70::TRKISO,HEEPV70::EMHADD1ISO,HEEPV70::DXY,HEEPV70::MISSHITS});
- bool passECALDRIVEN = HEEPV70::pass(heepIDBits,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5,HEEPV70::HADEM,HEEPV70::TRKISO,HEEPV70::EMHADD1ISO,HEEPV70::DXY,HEEPV70::MISSHITS,HEEPV70::ECALDRIVEN});
- bool passHEEP = HEEPV70::pass(heepIDBits,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5,HEEPV70::HADEM,HEEPV70::TRKISO,HEEPV70::EMHADD1ISO,HEEPV70::DXY,HEEPV70::MISSHITS,HEEPV70::ECALDRIVEN});
+ bool passETA = HEEPV70::pass(heepV70Bitmap,{HEEPV70::ET,HEEPV70::ETA});
+ bool passDETAINSEED = HEEPV70::pass(heepV70Bitmap,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED});
+ bool passDPHIIN = HEEPV70::pass(heepV70Bitmap,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED});
+ bool passSIGMAIETAIETA = HEEPV70::pass(heepV70Bitmap,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA});
+ bool passE2X5OVER5X5 = HEEPV70::pass(heepV70Bitmap,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5});
+ bool passHADEM = HEEPV70::pass(heepV70Bitmap,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5,HEEPV70::HADEM});
+ bool passTRKISO = HEEPV70::pass(heepV70Bitmap,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5,HEEPV70::HADEM,HEEPV70::TRKISO});
+ bool passEMHADD1ISO = HEEPV70::pass(heepV70Bitmap,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5,HEEPV70::HADEM,HEEPV70::TRKISO,HEEPV70::EMHADD1ISO});
+ bool passDXY = HEEPV70::pass(heepV70Bitmap,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5,HEEPV70::HADEM,HEEPV70::TRKISO,HEEPV70::EMHADD1ISO,HEEPV70::DXY});
+ bool passMISSHITS = HEEPV70::pass(heepV70Bitmap,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5,HEEPV70::HADEM,HEEPV70::TRKISO,HEEPV70::EMHADD1ISO,HEEPV70::DXY,HEEPV70::MISSHITS});
+ bool passECALDRIVEN = HEEPV70::pass(heepV70Bitmap,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5,HEEPV70::HADEM,HEEPV70::TRKISO,HEEPV70::EMHADD1ISO,HEEPV70::DXY,HEEPV70::MISSHITS,HEEPV70::ECALDRIVEN});
+ bool passHEEP = HEEPV70::pass(heepV70Bitmap,{HEEPV70::ET,HEEPV70::ETA,HEEPV70::DETAINSEED,HEEPV70::DPHIIN,HEEPV70::SIGMAIETAIETA,HEEPV70::E2X5OVER5X5,HEEPV70::HADEM,HEEPV70::TRKISO,HEEPV70::EMHADD1ISO,HEEPV70::DXY,HEEPV70::MISSHITS,HEEPV70::ECALDRIVEN});
 
 
         HEEP->Fill(bincounter-1);
@@ -497,7 +533,7 @@ HEEP->GetXaxis()->SetBinLabel(bincounter,"NoCuts");
         HEEP->GetXaxis()->SetBinLabel(bincounter,"ECALDRIVEN");
                 }
         ++bincounter;
- */
+ 
     }  
  }
 
@@ -529,10 +565,33 @@ clearVectors();
 
 tree->Fill();
 gStyle->SetOptStat(0);
+//HEEP->Sumw2();
+//Electron->Sumw2();
 HEEP->Draw();
 c->SaveAs("LQ_HEEP_bits.png");
 HEEP_single->Draw();
 c->SaveAs("LQ_HEEP_singlebits.png");
+Ratio->Divide(HEEP_pt,Electron,1.,1.,"B");
+Ratio->Draw("PE");
+Ratio->SetMarkerSize(2.);
+Ratio->SetTitle("LQ_HEEP_efficiency");
+Ratio->SetAxisRange(0.,1.1, "Y");
+Ratio->GetYaxis()->SetTitle("Efficiency");
+Ratio->GetYaxis()->SetTitleSize(20);
+Ratio->GetYaxis()->SetNdivisions(520);
+Ratio->GetYaxis()->SetTitleFont(43);
+Ratio->GetYaxis()->SetTitleOffset(1.55);
+Ratio->GetYaxis()->SetLabelFont(43); // Absolute font size in pixel (precision 3)
+Ratio->GetYaxis()->SetLabelSize(15);
+
+
+Ratio->GetXaxis()->SetTitleSize(20);
+Ratio->GetXaxis()->SetTitleFont(43);
+Ratio->GetXaxis()->SetTitle("pt (GeV)");
+Ratio->GetXaxis()->SetLabelFont(43); // Absolute font size in pixel (precision 3)
+Ratio->GetXaxis()->SetLabelSize(15);
+c->SaveAs("LQ_HEEP_efficiency.png");
+
 }
 
 
@@ -541,9 +600,15 @@ void
 MiniAODAnalyzer::beginJob()
 {
 
+
+  double bin[26]={0., 35.,100.,200.,300.,400.,500.,600.,700.,800.,900.,1000.,1100.,1200.,1300.,1400.,1500.,1600.,1700.,1800.,1900.,2000.,2250.,2500.,2750.,3000.};
+  HEEP_pt = fs->make<TH1F>("LQ_HEEP_pt","LQ_HEEP_pt", 25,bin);
+  Electron = fs->make<TH1F>("Electron_Reco","Electron_Reco", 25,bin);
+  Ratio = fs->make<TH1F>("Ratio","Ratio", 25,bin);
+  c=fs->make<TCanvas>("canvas","canvas",900,600);
   HEEP = fs->make<TH1F>("LQ_HEEP cuts","LQ_HEEP cuts", 13,0,13);
   HEEP_single = fs->make<TH1F>("LQ_HEEP singlecuts","LQ_HEEP singleuts", 13,0,13);
-  c=fs->make<TCanvas>("canvas","canvas",900,600);
+
 
   tree = fs->make<TTree>("tree","tree");
   tree->Branch("run", &tree_.run, "run/I");
